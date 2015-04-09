@@ -14,7 +14,8 @@ var install     = require('gulp-install');
 var conflict    = require('gulp-conflict');
 var template    = require('gulp-template');
 var rename      = require('gulp-rename');
-var _            = require('underscore.string');
+var _           = require('lodash');
+_.string        = require('underscore.string');
 var inquirer    = require('inquirer');
 var fs          = require('fs');
 
@@ -23,11 +24,11 @@ function format(string) {
     return username.replace(/\s/g, '');
 }
 
+var workingDir = process.cwd();
 
 var defaults = (function() {
-    var workingDirName = path.basename(process.cwd()),
-        homeDir, osUserName, configFile, user;
-
+    var workingDirName = path.basename(workingDir);
+    var homeDir, osUserName, configFile, user;
     if (process.platform === 'win32') {
         homeDir = process.env.USERPROFILE;
         osUserName = process.env.USERNAME || path.basename(homeDir).toLowerCase();
@@ -106,3 +107,33 @@ gulp.task('default', function (done) {
                 });
         });
 });
+
+gulp.task('service', function (done) {
+    var glob = require('glob');
+    var serviceBaseName = [gulp.args[0], 'service'].join('_');
+    var existingServices = glob.sync(workingDir + '/src/services/*_service.js').map(function (file) {
+        return path.basename(file, '.js');
+    });
+    existingServices.push(serviceBaseName);
+    var answers = {
+        existingServices: _.uniq(existingServices),
+        serviceName: serviceBaseName
+    }
+    gulp.src(__dirname + '/templates/services/**')
+        .pipe(template(answers))
+        .pipe(rename(function(file) {
+            file.dirname = './src/services';
+
+            if (file.basename === 'service') {
+                file.basename = serviceBaseName;
+            } else if (file.basename === 'spec') {
+                file.basename = serviceBaseName + '_spec';
+                file.dirname = './spec';
+            }
+        }))
+        .pipe(conflict('./'))
+        .pipe(gulp.dest('./'))
+        .on('end', function() {
+            done();
+        });
+})
